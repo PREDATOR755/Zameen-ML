@@ -25,7 +25,7 @@ jobs:
           pip install requests beautifulsoup4 lxml fake-useragent tqdm pandas
 
       - name: 🕷️ Run Zameen Scraper
-        run: python Scrapper.py
+        run: python scrapper.py
           
       - name: 💾 Commit and Push Updated Dataset (if changed)
         run: |
