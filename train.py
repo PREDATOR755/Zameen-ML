@@ -91,12 +91,19 @@ def load_and_clean():
     raw_df["location_clean"] = raw_df["location"].fillna("Unknown").apply(clean_location)
 
     # Keep only houses (property_type may be missing; assume "House" if empty)
-    # Not critical, but good to filter.
     if "property_type" in raw_df.columns:
         raw_df = raw_df[raw_df["property_type"].str.lower() == "house"].copy()
 
     # Basic outlier filtering (price and area)
     df = raw_df[(raw_df["price_pkr"] >= 5_000_000) & (raw_df["area_marla"] <= 500)].copy().reset_index(drop=True)
+
+    # =====================================================================
+    # CRITICAL FIX: Minimum Frequency Filtering
+    # Keep only locations with 5 or more listings to stabilize the model
+    # =====================================================================
+    loc_counts = df["location_clean"].value_counts()
+    valid_locations = loc_counts[loc_counts >= 5].index
+    df = df[df["location_clean"].isin(valid_locations)].copy().reset_index(drop=True)
 
     # Fill missing amenity columns with 0 (matching UI expectations)
     amenity_cols = ["parking_spaces", "servant_quarters", "bedrooms", "bathrooms", "kitchens"]
@@ -118,7 +125,7 @@ def load_and_clean():
     iqr = q3 - q1
     df = df[(y_log >= q1 - 2 * iqr) & (y_log <= q3 + 2 * iqr)].reset_index(drop=True)
 
-    print(f"✅ After cleaning: {len(df)} rows, {df['location_clean'].nunique()} unique sectors.")
+    print(f"✅ After cleaning: {len(df)} rows, {df['location_clean'].nunique()} robust sectors.")
     return df
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -133,7 +140,6 @@ def get_spatial_data(unique_locs):
     db = {}
     for loc in unique_locs:
         try:
-            # Avoid over‑querying; skip if already done (not needed here, but loop once)
             loc_obj = geolocator.geocode(f"{loc}, Islamabad, Pakistan", timeout=5)
             if loc_obj:
                 coords = (loc_obj.latitude, loc_obj.longitude)
