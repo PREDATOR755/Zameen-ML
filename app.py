@@ -43,7 +43,7 @@ model, encoders = load_ml_artifacts()
 
 if model is None or encoders is None:
     st.error("🚨 **Model artifacts missing!**")
-    st.info("The repository needs `rf_model.pkl` and `encoders.pkl` to run. Please run your training script or wait for the GitHub Actions retraining pipeline to finish.")
+    st.info("The repository needs `rf_model.pkl` and `encoders.pkl` to run. Please wait for your GitHub Actions retraining pipeline to finish generating them.")
 else:
     # Extract encoding references
     loc_map = encoders.get("loc_map", {})
@@ -62,7 +62,18 @@ else:
 
     with col1:
         location = st.selectbox("📍 Location", available_locations)
-        area_marla = st.number_input("📏 Area (Marla)", min_value=1.0, max_value=500.0, value=7.0, step=0.5)
+        
+        # --- NEW: Unit selection toggle ---
+        unit = st.radio("📏 Select Area Unit", ["Marla", "Kanal"], horizontal=True)
+        
+        # Dynamic Area Input based on selected unit
+        if unit == "Kanal":
+            area_input = st.number_input("Area Value (Kanal)", min_value=0.05, max_value=25.0, value=1.0, step=0.05)
+            area_marla = area_input * 20.0  # Convert Kanal to Marla behind the scenes
+        else:
+            area_input = st.number_input("Area Value (Marla)", min_value=1.0, max_value=500.0, value=7.0, step=0.5)
+            area_marla = area_input
+
         bedrooms = st.slider("🛏️ Bedrooms", min_value=1, max_value=10, value=3)
         bathrooms = st.slider("🚿 Bathrooms", min_value=1, max_value=10, value=3)
 
@@ -77,7 +88,7 @@ else:
     # Predict Button
     if st.button("💰 Estimate Property Value", use_container_width=True):
         with st.spinner("Calculating valuation..."):
-            # 1. Gather inputs into a single row dictionary matching training structure
+            # 1. Gather inputs into a single row dictionary
             input_data = {
                 "area_marla": area_marla,
                 "bedrooms": bedrooms,
@@ -118,7 +129,7 @@ else:
             X_pred["log_loc_te"] = np.log1p(te_val)
             X_pred["area_x_loc"] = area_marla * np.log1p(te_val) / 10.0
 
-            # 3. Predict via Random Forest Model (Target was log-scaled)
+            # 3. Predict via Random Forest Model
             predicted_log_price = model.predict(X_pred)[0]
             estimated_price = np.expm1(predicted_log_price)
 
@@ -132,6 +143,7 @@ else:
             
             st.markdown(f"""
             * **Expected Market Range:** {format_pkr(lower_bound)} to {format_pkr(upper_bound)}
+            * **Selected Area:** {area_input} {unit} ({area_marla:.1f} Marla equivalent)
             * **Location Premium Context:** Model is valuing listings in **{location}** relative to a historical city baseline median of *{format_pkr(glob_med)}*.
             """)
             
